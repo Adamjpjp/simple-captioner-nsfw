@@ -2,7 +2,7 @@ import os
 import torch
 import gradio as gr
 from transformers import BitsAndBytesConfig
-from qwen_vl_utils import process_vision_info  # Ensure this is installed
+from qwen_vl_utils import process_vision_info
 from PIL import Image
 import time
 
@@ -11,24 +11,8 @@ IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp')
 VIDEO_EXTENSIONS = ('.mp4', '.mov', '.avi', '.webm', '.mkv', ".gif", ".flv")
 DEFAULT_PROMPT = "Describe this media."
 DEFAULT_MODEL_ID = "Qwen/Qwen3-VL-8B-Instruct"
-DEFAULT_QUANT = "8-bit"  # "None" | "8-bit" | "4-bit"
+DEFAULT_QUANT = "8-bit"
 DEFAULT_ATTN = "eager" if os.name == "nt" else "flash_attention_2"
-
-
-PRESETS = {
-    "auto": {
-        "min_pixels": 256 * 28 * 28,
-        "max_pixels": 896 * 28 * 28,
-    },
-    "fast": {
-        "resized_height": 392,
-        "resized_width": 392,
-    },
-    "high": {
-        "resized_height": 728,
-        "resized_width": 728,
-    },
-}
 
 
 AVAILABLE_MODELS = [
@@ -73,7 +57,6 @@ def pick_model_class(model_id: str):
     return AutoModelForVision2Seq
 
 def unload_model():
-
     print ("[DEBUG] Unload currently loaded model")
     global model, processor
     try:
@@ -90,11 +73,6 @@ def unload_model():
         torch.cuda.empty_cache()
 
 def load_selected_model(model_id: str, quant_choice: str, attn_impl: str = DEFAULT_ATTN):
-    """
-    Loads (or reloads) the model + processor with chosen quantization and attention impl.
-    Falls back to 'eager' if flash_attention_2 fails.
-    """
-
     print("[DEBUG] Loading selected model:", model_id)
     global model, processor, current_model_id, current_quant
 
@@ -187,17 +165,6 @@ def start_process():
     return updates
 
 
-def serialize_for_debug(obj):
-    if isinstance(obj, dict):
-        return {k: serialize_for_debug(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [serialize_for_debug(i) for i in obj]
-    elif isinstance(obj, Image.Image):
-        return f"<Image {obj.size} {obj.mode}>"
-    else:
-        return obj
-
-
 def get_model_info():
     global model
     if model is None:
@@ -223,7 +190,7 @@ def generate_caption(media_path, prompt, max_tokens, summary_mode=False, one_sen
     global processor, model
     assert model is not None, "Model must be loaded before generating captions."
     assert processor is not None, "Processor must be loaded before generating captions."
-    # Edit custom prompts here if you want
+    
     if summary_mode and one_sentence_mode:
         prompt += " Give a one-sentence summary of the scene."
     elif summary_mode:
@@ -233,20 +200,16 @@ def generate_caption(media_path, prompt, max_tokens, summary_mode=False, one_sen
 
     ext = os.path.splitext(media_path)[-1].lower()
     is_video = ext in VIDEO_EXTENSIONS
-
     content_type = "video" if is_video else "image"
-
 
     if is_video:
         media_data = media_path
     else:
         media_data = Image.open(media_path).convert("RGB")
 
-
     content_block = {"type": content_type, content_type: media_data}
 
     if not is_video:
-
         if resolution_mode == "auto":
             content_block["min_pixels"] = 256 * 28 * 28
             content_block["max_pixels"] = 896 * 28 * 28
@@ -260,7 +223,6 @@ def generate_caption(media_path, prompt, max_tokens, summary_mode=False, one_sen
             content_block["resized_height"] = 728
             content_block["resized_width"] = 728
 
-
     messages = [
         {
             "role": "user",
@@ -271,17 +233,13 @@ def generate_caption(media_path, prompt, max_tokens, summary_mode=False, one_sen
         }
     ]
 
-
     text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
     vision_info = process_vision_info(messages)
-
-    assert isinstance(vision_info, tuple), "process_vision_info did not return a tuple"
 
     if len(vision_info) == 3:
         image_inputs, video_inputs, _ = vision_info
     elif len(vision_info) == 2:
-        image_inputs, video_inputs = vision_info # type: ignore
+        image_inputs, video_inputs = vision_info
     else:
         raise ValueError(f"Error: Expected 2 or 3 values from process_vision_info, but got {len(vision_info)}.")
 
@@ -292,7 +250,6 @@ def generate_caption(media_path, prompt, max_tokens, summary_mode=False, one_sen
         padding=True,
         return_tensors="pt",
     ).to("cuda")
-
 
     with torch.no_grad():
         generated_ids = model.generate(**inputs, max_new_tokens=max_tokens)
@@ -310,10 +267,8 @@ def generate_caption(media_path, prompt, max_tokens, summary_mode=False, one_sen
 def is_image_file(filename):
     return filename.lower().endswith(IMAGE_EXTENSIONS)
 
-
 def is_video_file(filename):
     return filename.lower().endswith(VIDEO_EXTENSIONS)
-
 
 def build_final_prompt(user_prompt, summary, one_sentence):
     parts = [user_prompt.strip()]
@@ -325,7 +280,6 @@ def build_final_prompt(user_prompt, summary, one_sentence):
 
 
 def process_folder(folder_path, prompt, skip_existing, max_tokens, summary_mode, one_sentence_mode, retain_preview, resolution_mode):
-
     global should_abort, current_model_id, current_quant
 
     processed_media = 0
@@ -336,65 +290,21 @@ def process_folder(folder_path, prompt, skip_existing, max_tokens, summary_mode,
     last_media_name_markdown = ""
     elapsed_str = ""
 
-    print("[DEBUG] starting folder processing...:")
-    print("[DEBUG] using model: ", current_model_id)
-    print("[DEBUG] model quantization: ", current_quant)
-    print("[DEBUG] folder_path: ", folder_path)
-    print ("[DEBUG] prompt: ", prompt)
-    print("[DEBUG] skip_existing: ", skip_existing)
-    print("[DEBUG] max_tokens: ", max_tokens)
-    print("[DEBUG] summary_mode: ", summary_mode)
-    print ("[DEBUG] one_sentence_mode: ", one_sentence_mode)
-    print("[DEBUG] retain_preview: ", retain_preview)
-    print("[DEBUG] resolution_mode: ", resolution_mode)
-    print("[DEBUG] should_abort: ", should_abort)
-
-    if not folder_path.strip():
+    if not folder_path.strip() or not os.path.exists(folder_path):
         control_updates = finish_process()
-        yield (
-            "⚠️ Please enter a valid folder path.",
-            None,
-            None,
-            "No media to process.",
-            0,
-            "",
-            *control_updates
-        )
-        return
-
-    if not os.path.exists(folder_path):
-        control_updates = finish_process()
-        yield (
-            f"❌ Folder not found: {folder_path}",
-            None,
-            None,
-            "No media to process.",
-            0,
-            "",
-            *control_updates
-        )
+        yield ("❌ Invalid folder path.", None, None, "No media to process.", 0, "", *control_updates)
         return
 
     media_files = []
     for root, _, files in os.walk(folder_path):
         for file in files:
-
             if is_image_file(file) or is_video_file(file):
                 media_files.append(os.path.join(root, file))
 
     total_media = len(media_files)
-
     if total_media == 0:
         control_updates = finish_process()
-        yield (
-            "📂 No media found in the folder or subfolders.",
-            None,
-            None,
-            "No media to process.",
-            0,
-            "",
-            *control_updates
-        )
+        yield ("📂 No media found.", None, None, "No media to process.", 0, "", *control_updates)
         return
 
     start_time = time.time()
@@ -407,21 +317,12 @@ def process_folder(folder_path, prompt, skip_existing, max_tokens, summary_mode,
             control_updates = enable_controls_dict()
             control_updates[status_index] = gr.update(value="⛔ Aborted by user.")
             control_updates[abort_index] = gr.update(interactive=False)
-
-            yield (
-                "⛔ Aborted by user.",
-                None,
-                None,
-                "Aborted.",
-                0,
-                "",
-                *control_updates
-            )
+            yield ("⛔ Aborted by user.", None, None, "Aborted.", 0, "", *control_updates)
             return
+            
         try:
             txt_filename = os.path.splitext(os.path.basename(media_path))[0] + ".txt"
             txt_path = os.path.join(os.path.dirname(media_path), txt_filename)
-
             rel_path = os.path.relpath(media_path, folder_path)
             media_name_markdown = f"**File:** `{rel_path}`"
 
@@ -430,13 +331,12 @@ def process_folder(folder_path, prompt, skip_existing, max_tokens, summary_mode,
                 elapsed = int(time.time() - start_time)
                 elapsed_str = f"{elapsed//60:02d}:{elapsed%60:02d}"
                 skipped_media += 1
-
                 control_updates = start_process()
                 yield (
-                    f"⏭️ Skipped {idx+1}/{total_media}: {rel_path} (already captioned)",
+                    f"⏭️ Skipped {idx+1}/{total_media}: {rel_path}",
                     last_media_to_show if retain_preview else None,
                     last_media_name_markdown if retain_preview else None,
-                    last_caption if retain_preview else "Skipped (already captioned)",
+                    last_caption if retain_preview else "Skipped",
                     progress,
                     elapsed_str,
                     *control_updates
@@ -445,7 +345,6 @@ def process_folder(folder_path, prompt, skip_existing, max_tokens, summary_mode,
 
             caption = generate_caption(media_path, prompt, max_tokens, summary_mode, one_sentence_mode, resolution_mode)
 
-            # Only generate previews for images
             if is_image_file(media_path):
                 media_to_show = Image.open(media_path)
             else:
@@ -475,30 +374,26 @@ def process_folder(folder_path, prompt, skip_existing, max_tokens, summary_mode,
 
         except Exception as e:
             failed_media += 1
-            print(f"[ERROR] Failed processing file {media_path}: {e}")
+            print(f"[ERROR] Failed processing {media_path}: {e}")
             control_updates = start_process()
             yield (
-                f"⚠️ Error processing {media_path}: {str(e)}",
+                f"⚠️ Error on {os.path.basename(media_path)}: {str(e)}",
                 None,
                 None,
-                "Error in captioning.",
+                "Error.",
                 0,
                 elapsed_str,
                 *control_updates
             )
 
-    end_time = time.time()
-    total_time = f"{end_time - start_time:.2f}"
-
-
     control_updates = finish_process()
     yield (
-        f"✅ Processing complete! , processed {processed_media} media in {elapsed_str}, skipped {skipped_media} media. Failed to process {failed_media} media (inaccessible, unknown or broken file)",
+        f"✅ Done! Processed {processed_media}, Skipped {skipped_media}, Failed {failed_media}.",
         last_media_to_show,
         last_media_name_markdown,
         last_caption,
-        None,
-        None,
+        100,
+        elapsed_str,
         *control_updates
     )
 
@@ -508,48 +403,38 @@ def reset_prompt():
 
 
 css = """
-.generating {
-    border: none;
-}
+.generating { border: none; }
 """
 
+# --- GRADIO 6.0 FIXES APPLIED BELOW ---
+# 1. Removed theme/css from Blocks constructor
+# 2. Moved theme/css to launch()
+# 3. Removed show_api (deprecated/removed in 6.0)
 
-with gr.Blocks(theme=gr.themes.Base(), css=css) as iface: # type: ignore
-
+with gr.Blocks() as iface:
     gr.Markdown("# Simple Captioner")
-    gr.Markdown("A simple media caption generator for images and video using **[Qwen2.5/3 VL Instruct](https://huggingface.co/Qwen/)**")
-    gr.Markdown("Supported image formats: png, jpg, jpeg, bmp, gif, webp")
-    gr.Markdown("Supported video formats: mp4, mov, avi, webm, mkv, gif, flv")
-    gr.Markdown("Written by [Olli S.](https://github.com/o-l-l-i)")
-
-
+    gr.Markdown("A simple media caption generator using **[Qwen2.5/3 VL Instruct](https://huggingface.co/Qwen/)**")
+    
     with gr.Accordion("⚙️ Model Settings", open=True):
         ui_e["model_dropdown"] = model_dropdown = gr.Dropdown(
             label="Model",
             choices=AVAILABLE_MODELS,
             value=DEFAULT_MODEL_ID,
             allow_custom_value=False,
-            interactive=True,
-            info="Pick a model to use for captioning."
+            interactive=True
         )
-        custom_model_box = gr.Textbox(
-            label="Custom Model ID (Hugging Face)",
-            placeholder="e.g. Qwen/Qwen3-VL-4B-Instruct or your-org/my-qwen3-checkpoint",
-            visible=False,
-        )
+        custom_model_box = gr.Textbox(label="Custom Model ID", visible=False)
         ui_e["quant_dropdown"] = quant_dropdown = gr.Radio(
             label="Quantization",
             choices=["None", "8-bit", "4-bit"],
             value=DEFAULT_QUANT,
-            interactive=True,
-            info="Lower-bit quantization reduces VRAM, may slightly affect quality."
+            interactive=True
         )
         ui_e["attn_dropdown"] = attn_dropdown = gr.Radio(
-            label="Attention Implementation",
+            label="Attention",
             choices=["flash_attention_2", "eager"],
             value=DEFAULT_ATTN,
-            interactive=True,
-            info="If FlashAttention isn't installed/working, choose 'eager'. Auto-fallback on load."
+            interactive=True
         )
         ui_e["load_button"] = gr.Button("📦 Load / Reload Model")
 
@@ -561,8 +446,8 @@ with gr.Blocks(theme=gr.themes.Base(), css=css) as iface: # type: ignore
     def _ui_load_model(sel, custom_id, quant, attn):
         model_id = custom_id.strip() if sel == "Custom..." and custom_id and custom_id.strip() else sel
         name, device, vram, dtype, cfg = load_selected_model(model_id, quant, attn)
-        status = f"✅ Loaded '{model_id}' with {quant} quantization ({attn})."
-        return status, name, device, vram, dtype, cfg
+        return f"✅ Loaded '{model_id}'", name, device, vram, dtype, cfg
+
     with gr.Accordion("⚙️ Model Information", open=False):
         model_name_display = gr.Textbox(label="Model Name", interactive=False)
         device_display = gr.Textbox(label="Device", interactive=False)
@@ -571,79 +456,48 @@ with gr.Blocks(theme=gr.themes.Base(), css=css) as iface: # type: ignore
         config_display = gr.Textbox(label="Model Config", interactive=False, lines=4)
 
     with gr.Row():
-        ui_e["folder_input"] = gr.Textbox(label="📁 Folder Path", placeholder="e.g. C:\\Users\\you\\Pictures\\input_images")
+        ui_e["folder_input"] = gr.Textbox(label="📁 Folder Path", placeholder="/path/to/images")
         ui_e["prompt_input"] = gr.Textbox(label="Custom Prompt", value=DEFAULT_PROMPT)
 
-    ui_e["skip_existing_checkbox"] = gr.Checkbox(label="Skip already captioned media (.txt exists)", value=False)
+    ui_e["skip_existing_checkbox"] = gr.Checkbox(label="Skip already captioned (.txt exists)", value=False)
 
     with gr.Row():
-        gr.Markdown("### Prompt Controls")
-        gr.Markdown("""
-        - **Summary Mode**: Asks the model to summarize the media content briefly.
-        - **One-Sentence Mode**: Instructs the model to keep the caption to a single concise sentence.
-        """)
         ui_e["summary_mode"] = gr.Checkbox(label="Summary Mode", value=False)
         ui_e["one_sentence_mode"] = gr.Checkbox(label="One-Sentence Mode", value=False)
 
-    prompt_preview = gr.Textbox(
-        label="Final Prompt Preview",
-        lines=2,
-        interactive=False
-    )
+    prompt_preview = gr.Textbox(label="Final Prompt Preview", lines=2, interactive=False)
 
     with gr.Row():
-        ui_e["max_tokens_slider"] = gr.Slider(label="🧾 Max Tokens", minimum=32, maximum=512, value=128, step=16)
+        ui_e["max_tokens_slider"] = gr.Slider(label="Max Tokens", minimum=32, maximum=512, value=128, step=16)
         ui_e["resolution_mode"] = gr.Dropdown(
             label="Image Resolution",
             choices=["auto", "auto_high", "fast", "high"],
-            value="auto",
-            info="Choose the resolution mode for visual input."
+            value="auto"
         )
 
     with gr.Row():
-        ui_e["reset_button"] = gr.Button("🔄 Reset to Default Prompt")
+        ui_e["reset_button"] = gr.Button("🔄 Reset Prompt")
         ui_e["start_button"] = gr.Button("🚀 Start Processing", interactive=True)
         ui_e["abort_button"] = gr.Button("⛔ Abort", interactive=False)
 
     ui_e["status_output"] = gr.Textbox(label="Status", interactive=False)
     progress_bar = gr.Slider(minimum=0, maximum=100, label="Progress", interactive=False)
-    time_display = gr.Textbox(label="⏱️ Time Taken (s)", interactive=False)
+    time_display = gr.Textbox(label="Time Taken", interactive=False)
 
     with gr.Row():
         with gr.Column(scale=1):
             media_output = gr.Image(label="Current Image", interactive=False)
             media_name_markdown = gr.Markdown()
-            ui_e["retain_preview_checkbox"] = gr.Checkbox(
-                label="Retain preview on skip",
-                value=True
-            )
+            ui_e["retain_preview_checkbox"] = gr.Checkbox(label="Retain preview on skip", value=True)
         with gr.Column(scale=1):
             caption_output = gr.Textbox(label="Generated Caption", interactive=False)
 
-    ui_e["prompt_input"].change(
-        fn=build_final_prompt,
-        inputs=[ui_e["prompt_input"], ui_e["summary_mode"], ui_e["one_sentence_mode"]],
-        outputs=[prompt_preview],
-    )
+    # Event Wiring
+    for comp in [ui_e["prompt_input"], ui_e["summary_mode"], ui_e["one_sentence_mode"]]:
+        comp.change(fn=build_final_prompt, inputs=[ui_e["prompt_input"], ui_e["summary_mode"], ui_e["one_sentence_mode"]], outputs=[prompt_preview])
 
-    ui_e["summary_mode"].change(
-        fn=build_final_prompt,
-        inputs=[ui_e["prompt_input"], ui_e["summary_mode"], ui_e["one_sentence_mode"]],
-        outputs=[prompt_preview],
-    )
-
-    ui_e["one_sentence_mode"].change(
-        fn=build_final_prompt,
-        inputs=[ui_e["prompt_input"], ui_e["summary_mode"], ui_e["one_sentence_mode"]],
-        outputs=[prompt_preview],
-    )
-
-    ui_e["start_button"].click(
-        start_process,
-        inputs=[],
-        outputs=[ui_e[k] for k in control_keys]
-    )
-
+    ui_e["start_button"].click(start_process, inputs=[], outputs=[ui_e[k] for k in control_keys])
+    
     ui_e["start_button"].click(
         process_folder,
         inputs=[
@@ -667,27 +521,16 @@ with gr.Blocks(theme=gr.themes.Base(), css=css) as iface: # type: ignore
         ]
     )
 
-    ui_e["abort_button"].click(
-        fn=abort_process,
-        inputs=[],
-        outputs=[ui_e[k] for k in control_keys],
-        queue=False
-    )
-
+    ui_e["abort_button"].click(fn=abort_process, inputs=[], outputs=[ui_e[k] for k in control_keys], queue=False)
     ui_e["reset_button"].click(reset_prompt, inputs=[], outputs=[ui_e["prompt_input"]])
-    ui_e["start_button"].click(get_model_info, inputs=[], outputs=[model_name_display, device_display, vram_display, dtype_display, config_display])
-
+    
     ui_e["load_button"].click(
-    _ui_load_model,
-    inputs=[model_dropdown, custom_model_box, quant_dropdown, attn_dropdown],
-    outputs=[ui_e["status_output"], model_name_display, device_display, vram_display, dtype_display, config_display],
+        _ui_load_model,
+        inputs=[model_dropdown, custom_model_box, quant_dropdown, attn_dropdown],
+        outputs=[ui_e["status_output"], model_name_display, device_display, vram_display, dtype_display, config_display],
     )
-    gr.Blocks.load(
-        iface,
-        get_model_info,
-        inputs=[],
-        outputs=[model_name_display, device_display, vram_display, dtype_display, config_display]
-    )
+    
+    gr.Blocks.load(iface, get_model_info, inputs=[], outputs=[model_name_display, device_display, vram_display, dtype_display, config_display])
 
-
-iface.launch(share=False, show_api=False)
+# Launch with new Gradio 6.0 syntax
+iface.launch(share=False, theme=gr.themes.Base(), css=css)
