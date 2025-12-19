@@ -407,11 +407,12 @@ css = """
 """
 
 # --- GRADIO 6.0 FIXES APPLIED BELOW ---
-# 1. Removed theme/css from Blocks constructor
-# 2. Moved theme/css to launch()
+# 1. Removed theme/css from launch()
+# 2. Moved theme/css to Blocks constructor
 # 3. Removed show_api (deprecated/removed in 6.0)
 
-with gr.Blocks() as iface:
+# Pass theme and css here instead
+with gr.Blocks(theme=gr.themes.Base(), css=css) as iface:
     gr.Markdown("# Simple Captioner")
     gr.Markdown("A simple media caption generator using **[Qwen2.5/3 VL Instruct](https://huggingface.co/Qwen/)**")
     
@@ -532,5 +533,5 @@ with gr.Blocks() as iface:
     
     gr.Blocks.load(iface, get_model_info, inputs=[], outputs=[model_name_display, device_display, vram_display, dtype_display, config_display])
 
-# Launch with new Gradio 6.0 syntax
-iface.launch(share=True, theme=gr.themes.Base(), css=css)
+# Launch without theme/css arguments (they are now in Blocks)
+iface.launch(share=True)
