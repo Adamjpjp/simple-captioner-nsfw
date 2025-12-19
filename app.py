@@ -34,6 +34,9 @@ PRESETS = {
 AVAILABLE_MODELS = [
     "Qwen/Qwen3-VL-4B-Instruct",
     "Qwen/Qwen3-VL-8B-Instruct",
+    "huihui-ai/Huihui-Qwen3-VL-8B-Instruct-abliterated",
+    "huihui-ai/Huihui-Qwen3-VL-8B-Thinking-abliterated",
+    "prithivMLmods/Qwen3-VL-8B-Instruct-abliterated-v2",
     "Qwen/Qwen2.5-VL-3B-Instruct",
     "Qwen/Qwen2.5-VL-7B-Instruct",
     "Custom...",
@@ -551,7 +554,7 @@ with gr.Blocks(theme=gr.themes.Base(), css=css) as iface: # type: ignore
         ui_e["load_button"] = gr.Button("📦 Load / Reload Model")
 
     def _toggle_custom(choice):
-        return gr.update(visible=(choice == "Custom…"))
+        return gr.update(visible=(choice == "Custom..."))
 
     model_dropdown.change(_toggle_custom, inputs=[model_dropdown], outputs=[custom_model_box])
 
