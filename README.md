@@ -1,4 +1,6 @@
-# Simple Captioner
+# Simple Captioner NSFW
+
+This is simply a fork of the below simple-captioner web application except i've addedsupport for Qwen3 VL abliterated models. These vision language models are all COMPLETELY uncensored and can be easily used to caption NSFW images. Thanks to the creator of simple-captioner, all details below.
 
 A minimal media captioning tool powered by **[Qwen2.5/3 VL Instruct](https://huggingface.co/Qwen/)** from Alibaba Group.
 
