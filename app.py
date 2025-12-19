@@ -533,4 +533,4 @@ with gr.Blocks() as iface:
     gr.Blocks.load(iface, get_model_info, inputs=[], outputs=[model_name_display, device_display, vram_display, dtype_display, config_display])
 
 # Launch with new Gradio 6.0 syntax
-iface.launch(share=False, theme=gr.themes.Base(), css=css)
+iface.launch(share=True, theme=gr.themes.Base(), css=css)
